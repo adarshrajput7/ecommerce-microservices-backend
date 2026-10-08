@@ -1,19 +1,23 @@
-# 1. Official Node.js Linux image
 FROM node:20-alpine
 
-# 2. Container ke andar working directory
 WORKDIR /app
 
-# 3. Root dependencies copy aur install karo
-COPY package*.json ./
-RUN npm install
-
-# 4. Saara code container me copy karo
+# 1. Root aur saari services ka code copy karo
 COPY . .
 
-# 5. Port expose karo (Render PORT env provide karta hai)
-ENV PORT=8080
+# 2. Root dependencies install karo (concurrently ke liye)
+RUN npm install
+
+# 3. Har ek service ke andar jaakar unke packages install karo
+RUN cd apiGateway && npm install
+RUN cd auth && npm install
+RUN cd cart && npm install
+RUN cd notification && npm install
+RUN cd order && npm install
+RUN cd payment && npm install
+RUN cd product && npm install
+RUN cd seller-dashboard && npm install
+
 EXPOSE 8080
 
-# 6. Container start hone par command
 CMD ["npm", "start"]
