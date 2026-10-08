@@ -1,55 +1,66 @@
-
-const express = require('express');
-const cors = require('cors');
-const { createProxyMiddleware } = require('http-proxy-middleware');
+import express from 'express';
+import cors from 'cors';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 
 const app = express();
 
-const allowedOrigins = [
-  'http://localhost:5173',
-  'https://ecommerce-user-client.vercel.app' // <-- ye add karo
-];
-
 app.use(cors({
-  origin: allowedOrigins,
+  origin: [
+    'http://localhost:5173',
+    'https://ecommerce-user-client.vercel.app'
+  ],
   credentials: true
 }));
 
 const routes = [
-  // Auth Service (handles /me and /api/auth)
-  { path: '/me', target: 'http://localhost:3000', rewrite: () => '/api/auth/me' },
-  { path: '/api/auth', target: 'http://localhost:3000' },
-  { path: '/auth', target: 'http://localhost:3000', rewrite: (path) => path.replace('/auth', '/api/auth') },
+  // Auth Service (Port 3000)
+  {
+    path: ['/me', '/auth', '/api/auth'],
+    target: 'http://localhost:3000',
+    pathRewrite: (path) => path.startsWith('/api/auth') ? path : `/api/auth${path}`
+  },
 
-  // Product Service (handles /product and /api/product)
-  { path: '/api/product', target: 'http://localhost:3001' },
-  { path: '/product', target: 'http://localhost:3001', rewrite: (path) => path.replace('/product', '/api/product') },
+  // Product Service (Port 3001) - Handles /product, /products, /api/product
+  {
+    path: ['/product', '/products', '/api/product', '/api/products'],
+    target: 'http://localhost:3001',
+    pathRewrite: (path) => path.replace(/^\/(product|products)/, '/api/product')
+  },
 
-  // Cart Service (handles /cart and /api/cart)
-  { path: '/api/cart', target: 'http://localhost:3002' },
-  { path: '/cart', target: 'http://localhost:3002', rewrite: (path) => path.replace('/cart', '/api/cart') },
+  // Cart Service (Port 3002)
+  {
+    path: ['/cart', '/api/cart'],
+    target: 'http://localhost:3002',
+    pathRewrite: (path) => path.startsWith('/api/cart') ? path : `/api/cart${path}`
+  },
 
-  // Order Service
-  { path: '/api/order', target: 'http://localhost:3003' },
-  { path: '/order', target: 'http://localhost:3003', rewrite: (path) => path.replace('/order', '/api/order') },
+  // Order Service (Port 3003)
+  {
+    path: ['/order', '/api/order'],
+    target: 'http://localhost:3003',
+    pathRewrite: (path) => path.startsWith('/api/order') ? path : `/api/order${path}`
+  },
 
-  // Payments Service
-  { path: '/api/payments', target: 'http://localhost:3004' },
-  { path: '/payments', target: 'http://localhost:3004', rewrite: (path) => path.replace('/payments', '/api/payments') },
+  // Payments Service (Port 3004)
+  {
+    path: ['/payments', '/api/payments'],
+    target: 'http://localhost:3004',
+    pathRewrite: (path) => path.startsWith('/api/payments') ? path : `/api/payments${path}`
+  },
 
-  // Seller Dashboard
-  { path: '/api/seller/dashboard', target: 'http://localhost:3007' }
+  // Seller Dashboard (Port 3007)
+  {
+    path: ['/seller/dashboard', '/api/seller/dashboard'],
+    target: 'http://localhost:3007'
+  }
 ];
 
-routes.forEach((route) => {
-  app.use(
-    route.path,
-    createProxyMiddleware({
-      target: route.target,
-      changeOrigin: true,
-      pathRewrite: route.rewrite ? route.rewrite : undefined,
-    })
-  );
+routes.forEach(route => {
+  app.use(route.path, createProxyMiddleware({
+    target: route.target,
+    changeOrigin: true,
+    pathRewrite: route.pathRewrite || undefined
+  }));
 });
 
 app.get('/health', (req, res) => {
