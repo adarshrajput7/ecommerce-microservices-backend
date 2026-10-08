@@ -1,95 +1,73 @@
 import express from 'express';
-import cors from 'cors';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-const allowedOrigins = [
-  'https://ecommerce-user-client.vercel.app',
-  'http://localhost:5173'
-];
+// Manual clean CORS middleware (No duplicate header conflicts)
+app.use((req, res, next) => {
+  const allowedOrigins = [
+    'https://ecommerce-user-client.vercel.app',
+    'http://localhost:5173'
+  ];
+  const origin = req.headers.origin;
 
-// 1. Gateway CORS
-app.use(cors({
-  origin: allowedOrigins,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, X-Requested-With');
+
+  // Preflight OPTIONS seedha 200 return karega
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+// Proxy Helper jo backend service ke galat CORS header ko clean karega
+const proxyConfig = (target, defaultPrefix) => createProxyMiddleware({
+  target,
+  changeOrigin: true,
+  pathRewrite: (path) => {
+    if (path.startsWith('/api/')) return path;
+    return `${defaultPrefix}${path.startsWith('/') ? path : '/' + path}`;
+  },
+  onProxyRes: (proxyRes, req, res) => {
+    // Backend service ke bheje hue origin header ko gateway ke correct origin se replace karo
+    const origin = req.headers.origin;
+    if (origin) {
+      proxyRes.headers['access-control-allow-origin'] = origin;
+      proxyRes.headers['access-control-allow-credentials'] = 'true';
+    }
+  }
+});
+
+// Services
+app.use(['/me', '/login', '/register', '/logout', '/auth', '/api/auth'], createProxyMiddleware({
+  target: 'http://localhost:3000',
+  changeOrigin: true,
+  pathRewrite: (path) => {
+    if (path.startsWith('/api/auth')) return path;
+    if (path.startsWith('/auth')) return path.replace('/auth', '/api/auth');
+    return `/api/auth${path.startsWith('/') ? path : '/' + path}`;
+  },
+  onProxyRes: (proxyRes, req) => {
+    const origin = req.headers.origin;
+    if (origin) {
+      proxyRes.headers['access-control-allow-origin'] = origin;
+      proxyRes.headers['access-control-allow-credentials'] = 'true';
+    }
+  }
 }));
 
-app.options('*', cors());
-
-// Helper function jo backend microservices ke galat CORS header ko override karega
-const overrideCors = (proxyRes, req) => {
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    proxyRes.headers['access-control-allow-origin'] = origin;
-    proxyRes.headers['access-control-allow-credentials'] = 'true';
-  }
-};
-
-const createServiceProxy = (target, defaultPrefix) => {
-  return createProxyMiddleware({
-    target,
-    changeOrigin: true,
-    pathRewrite: (path) => {
-      if (path.startsWith('/api/')) return path;
-      return `${defaultPrefix}${path.startsWith('/') ? path : '/' + path}`;
-    },
-    onProxyRes: overrideCors
-  });
-};
-
-// 1. Auth Service (Port 3000)
-app.use(
-  ['/me', '/login', '/register', '/logout', '/auth', '/api/auth'],
-  createProxyMiddleware({
-    target: 'http://localhost:3000',
-    changeOrigin: true,
-    pathRewrite: (path) => {
-      if (path.startsWith('/api/auth')) return path;
-      if (path.startsWith('/auth')) return path.replace('/auth', '/api/auth');
-      return `/api/auth${path.startsWith('/') ? path : '/' + path}`;
-    },
-    onProxyRes: overrideCors
-  })
-);
-
-// 2. Product Service (Port 3001)
-app.use(
-  ['/product', '/products', '/api/product', '/api/products'],
-  createServiceProxy('http://localhost:3001', '/api/product')
-);
-
-// 3. Cart Service (Port 3002)
-app.use(
-  ['/cart', '/api/cart'],
-  createServiceProxy('http://localhost:3002', '/api/cart')
-);
-
-// 4. Order Service (Port 3003)
-app.use(
-  ['/order', '/api/order'],
-  createServiceProxy('http://localhost:3003', '/api/order')
-);
-
-// 5. Payment Service (Port 3004)
-app.use(
-  ['/payments', '/api/payments'],
-  createServiceProxy('http://localhost:3004', '/api/payments')
-);
-
-// 6. Seller Dashboard (Port 3007)
-app.use(
-  ['/seller/dashboard', '/api/seller/dashboard'],
-  createProxyMiddleware({
-    target: 'http://localhost:3007',
-    changeOrigin: true,
-    onProxyRes: overrideCors
-  })
-);
+app.use(['/product', '/products', '/api/product', '/api/products'], proxyConfig('http://localhost:3001', '/api/product'));
+app.use(['/cart', '/api/cart'], proxyConfig('http://localhost:3002', '/api/cart'));
+app.use(['/order', '/api/order'], proxyConfig('http://localhost:3003', '/api/order'));
+app.use(['/payments', '/api/payments'], proxyConfig('http://localhost:3004', '/api/payments'));
+app.use(['/seller/dashboard', '/api/seller/dashboard'], createProxyMiddleware({ target: 'http://localhost:3007', changeOrigin: true }));
 
 app.listen(PORT, () => {
-  console.log(`Gateway running on port ${PORT}`);
+  console.log(`Gateway running on ${PORT}`);
 });
