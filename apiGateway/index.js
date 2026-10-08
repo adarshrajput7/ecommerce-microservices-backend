@@ -16,20 +16,40 @@ app.use(cors({
 }));
 
 const routes = [
+  // Auth Service (handles /me and /api/auth)
+  { path: '/me', target: 'http://localhost:3000', rewrite: () => '/api/auth/me' },
   { path: '/api/auth', target: 'http://localhost:3000' },
+  { path: '/auth', target: 'http://localhost:3000', rewrite: (path) => path.replace('/auth', '/api/auth') },
+
+  // Product Service (handles /product and /api/product)
   { path: '/api/product', target: 'http://localhost:3001' },
+  { path: '/product', target: 'http://localhost:3001', rewrite: (path) => path.replace('/product', '/api/product') },
+
+  // Cart Service (handles /cart and /api/cart)
   { path: '/api/cart', target: 'http://localhost:3002' },
+  { path: '/cart', target: 'http://localhost:3002', rewrite: (path) => path.replace('/cart', '/api/cart') },
+
+  // Order Service
   { path: '/api/order', target: 'http://localhost:3003' },
+  { path: '/order', target: 'http://localhost:3003', rewrite: (path) => path.replace('/order', '/api/order') },
+
+  // Payments Service
   { path: '/api/payments', target: 'http://localhost:3004' },
+  { path: '/payments', target: 'http://localhost:3004', rewrite: (path) => path.replace('/payments', '/api/payments') },
+
+  // Seller Dashboard
   { path: '/api/seller/dashboard', target: 'http://localhost:3007' }
 ];
 
-routes.forEach(({ path, target }) => {
-  app.use(path, createProxyMiddleware({
-    target,
-    changeOrigin: true,
-    pathRewrite: (reqPath) => `${path}${reqPath}`
-  }));
+routes.forEach((route) => {
+  app.use(
+    route.path,
+    createProxyMiddleware({
+      target: route.target,
+      changeOrigin: true,
+      pathRewrite: route.rewrite ? route.rewrite : undefined,
+    })
+  );
 });
 
 app.get('/health', (req, res) => {
