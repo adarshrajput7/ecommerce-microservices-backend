@@ -1,0 +1,20 @@
+{
+  "name": "ecom-root",
+  "version": "1.0.0",
+  "workspaces": [
+    "apiGateway",
+    "auth",
+    "cart",
+    "notification",
+    "order",
+    "payment",
+    "product",
+    "seller-dashboard"
+  ],
+  "scripts": {
+    "start": "concurrently \"npm start --workspace=auth\" \"npm start --workspace=cart\" \"npm start --workspace=notification\" \"npm start --workspace=order\" \"npm start --workspace=payment\" \"npm start --workspace=product\" \"npm start --workspace=seller-dashboard\" \"npm start --workspace=apiGateway\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
