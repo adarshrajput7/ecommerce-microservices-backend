@@ -127,6 +127,13 @@ routes.forEach(route => {
     changeOrigin: true,
     pathRewrite: route.pathRewrite,
     on: {
+      proxyRes: (proxyRes) => {
+        Object.keys(proxyRes.headers).forEach((h) => {
+          if (h.toLowerCase().startsWith('access-control-')) {
+            delete proxyRes.headers[h];
+          }
+        });
+      },
       error: (err, req, res) => {
         console.error('Proxy error:', req.originalUrl, err.message);
         res.status(502).json({ message: 'Service unavailable' });
