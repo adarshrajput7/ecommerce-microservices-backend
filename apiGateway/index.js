@@ -5,7 +5,6 @@ import { createProxyMiddleware } from 'http-proxy-middleware';
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// 1. CORS Configuration
 app.use(cors({
   origin: [
     'http://localhost:5173',
@@ -14,89 +13,85 @@ app.use(cors({
   credentials: true
 }));
 
-// 2. Health check route
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'API Gateway is live' });
 });
 
-// 3. Service Routing Rules
-const services = [
-  // Auth Service (Port 3000) -> Handles /me, /auth, /api/auth
-  {
-    prefix: ['/me', '/auth', '/api/auth'],
+// 1. AUTH SERVICE (Port 3000)
+// Handles: /me, /login, /register, /logout, /auth/*, /api/auth/*
+app.use(
+  ['/me', '/login', '/register', '/logout', '/auth', '/api/auth'],
+  createProxyMiddleware({
     target: 'http://localhost:3000',
+    changeOrigin: true,
     pathRewrite: (path) => {
-      if (path.startsWith('/me')) return `/api/auth${path}`;
-      if (path.startsWith('/auth')) return `/api${path}`;
-      return path;
+      if (path.startsWith('/api/auth')) return path;
+      if (path.startsWith('/auth')) return path.replace('/auth', '/api/auth');
+      return `/api/auth${path}`; // /me -> /api/auth/me, /login -> /api/auth/login
     }
-  },
+  })
+);
 
-  // Product Service (Port 3001) -> Handles /product, /products, /api/product
-  {
-    prefix: ['/product', '/products', '/api/product', '/api/products'],
+// 2. PRODUCT SERVICE (Port 3001)
+// Handles: /product, /products, /api/product, /api/products (with trailing slashes and queries)
+app.use(
+  ['/product', '/products', '/api/product', '/api/products'],
+  createProxyMiddleware({
     target: 'http://localhost:3001',
+    changeOrigin: true,
     pathRewrite: (path) => {
-      // Normalizes /product/?limit=12 or /product/ to /api/product?limit=12
-      const cleaned = path.replace(/^\/(product|products)\/?/, '/api/product/');
-      return cleaned.startsWith('/api/product') ? cleaned : `/api${path}`;
+      // Replaces /product or /products (with or without trailing slash) to /api/product
+      return path.replace(/^\/(product|products)\/?/, '/api/product');
     }
-  },
+  })
+);
 
-  // Cart Service (Port 3002) -> Handles /cart, /api/cart
-  {
-    prefix: ['/cart', '/api/cart'],
+// 3. CART SERVICE (Port 3002)
+// Handles: /cart, /api/cart
+app.use(
+  ['/cart', '/api/cart'],
+  createProxyMiddleware({
     target: 'http://localhost:3002',
+    changeOrigin: true,
     pathRewrite: (path) => {
-      const cleaned = path.replace(/^\/cart\/?/, '/api/cart/');
-      return cleaned.startsWith('/api/cart') ? cleaned : `/api${path}`;
+      return path.replace(/^\/cart\/?/, '/api/cart');
     }
-  },
+  })
+);
 
-  // Order Service (Port 3003) -> Handles /order, /api/order
-  {
-    prefix: ['/order', '/api/order'],
+// 4. ORDER SERVICE (Port 3003)
+app.use(
+  ['/order', '/api/order'],
+  createProxyMiddleware({
     target: 'http://localhost:3003',
+    changeOrigin: true,
     pathRewrite: (path) => {
-      const cleaned = path.replace(/^\/order\/?/, '/api/order/');
-      return cleaned.startsWith('/api/order') ? cleaned : `/api${path}`;
+      return path.replace(/^\/order\/?/, '/api/order');
     }
-  },
+  })
+);
 
-  // Payment Service (Port 3004) -> Handles /payments, /api/payments
-  {
-    prefix: ['/payments', '/api/payments'],
+// 5. PAYMENT SERVICE (Port 3004)
+app.use(
+  ['/payments', '/api/payments'],
+  createProxyMiddleware({
     target: 'http://localhost:3004',
+    changeOrigin: true,
     pathRewrite: (path) => {
-      const cleaned = path.replace(/^\/payments\/?/, '/api/payments/');
-      return cleaned.startsWith('/api/payments') ? cleaned : `/api${path}`;
+      return path.replace(/^\/payments\/?/, '/api/payments');
     }
-  },
+  })
+);
 
-  // Seller Dashboard Service (Port 3007)
-  {
-    prefix: ['/seller/dashboard', '/api/seller/dashboard'],
+// 6. SELLER DASHBOARD (Port 3007)
+app.use(
+  ['/seller/dashboard', '/api/seller/dashboard'],
+  createProxyMiddleware({
     target: 'http://localhost:3007',
-    pathRewrite: (path) => {
-      if (!path.startsWith('/api')) return `/api${path}`;
-      return path;
-    }
-  }
-];
-
-// 4. Attach Proxies
-services.forEach(({ prefix, target, pathRewrite }) => {
-  app.use(
-    prefix,
-    createProxyMiddleware({
-      target,
-      changeOrigin: true,
-      pathRewrite,
-      logLevel: 'debug'
-    })
-  );
-});
+    changeOrigin: true
+  })
+);
 
 app.listen(PORT, () => {
-  console.log(`API Gateway is running on port ${PORT}`);
+  console.log(`API Gateway running on port ${PORT}`);
 });
