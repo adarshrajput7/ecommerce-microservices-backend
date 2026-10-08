@@ -5,8 +5,13 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 
 const app = express();
 
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://ecommerce-user-client.vercel.app' // <-- ye add karo
+];
+
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000'],
+  origin: allowedOrigins,
   credentials: true
 }));
 
