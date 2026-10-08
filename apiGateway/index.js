@@ -5,20 +5,43 @@ import { createProxyMiddleware } from 'http-proxy-middleware';
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+const allowedOrigins = [
+  'https://ecommerce-user-client.vercel.app',
+  'http://localhost:5173'
+];
+
+// 1. Gateway CORS
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'https://ecommerce-user-client.vercel.app'
-  ],
-  credentials: true
+  origin: allowedOrigins,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
 }));
 
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'API Gateway is live' });
-});
+app.options('*', cors());
 
-// 1. AUTH SERVICE (Port 3000)
-// Handles: /me, /login, /register, /logout, /auth/*, /api/auth/*
+// Helper function jo backend microservices ke galat CORS header ko override karega
+const overrideCors = (proxyRes, req) => {
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    proxyRes.headers['access-control-allow-origin'] = origin;
+    proxyRes.headers['access-control-allow-credentials'] = 'true';
+  }
+};
+
+const createServiceProxy = (target, defaultPrefix) => {
+  return createProxyMiddleware({
+    target,
+    changeOrigin: true,
+    pathRewrite: (path) => {
+      if (path.startsWith('/api/')) return path;
+      return `${defaultPrefix}${path.startsWith('/') ? path : '/' + path}`;
+    },
+    onProxyRes: overrideCors
+  });
+};
+
+// 1. Auth Service (Port 3000)
 app.use(
   ['/me', '/login', '/register', '/logout', '/auth', '/api/auth'],
   createProxyMiddleware({
@@ -27,71 +50,46 @@ app.use(
     pathRewrite: (path) => {
       if (path.startsWith('/api/auth')) return path;
       if (path.startsWith('/auth')) return path.replace('/auth', '/api/auth');
-      return `/api/auth${path}`; // /me -> /api/auth/me, /login -> /api/auth/login
-    }
+      return `/api/auth${path.startsWith('/') ? path : '/' + path}`;
+    },
+    onProxyRes: overrideCors
   })
 );
 
-// 2. PRODUCT SERVICE (Port 3001)
-// Handles: /product, /products, /api/product, /api/products (with trailing slashes and queries)
+// 2. Product Service (Port 3001)
 app.use(
   ['/product', '/products', '/api/product', '/api/products'],
-  createProxyMiddleware({
-    target: 'http://localhost:3001',
-    changeOrigin: true,
-    pathRewrite: (path) => {
-      // Replaces /product or /products (with or without trailing slash) to /api/product
-      return path.replace(/^\/(product|products)\/?/, '/api/product');
-    }
-  })
+  createServiceProxy('http://localhost:3001', '/api/product')
 );
 
-// 3. CART SERVICE (Port 3002)
-// Handles: /cart, /api/cart
+// 3. Cart Service (Port 3002)
 app.use(
   ['/cart', '/api/cart'],
-  createProxyMiddleware({
-    target: 'http://localhost:3002',
-    changeOrigin: true,
-    pathRewrite: (path) => {
-      return path.replace(/^\/cart\/?/, '/api/cart');
-    }
-  })
+  createServiceProxy('http://localhost:3002', '/api/cart')
 );
 
-// 4. ORDER SERVICE (Port 3003)
+// 4. Order Service (Port 3003)
 app.use(
   ['/order', '/api/order'],
-  createProxyMiddleware({
-    target: 'http://localhost:3003',
-    changeOrigin: true,
-    pathRewrite: (path) => {
-      return path.replace(/^\/order\/?/, '/api/order');
-    }
-  })
+  createServiceProxy('http://localhost:3003', '/api/order')
 );
 
-// 5. PAYMENT SERVICE (Port 3004)
+// 5. Payment Service (Port 3004)
 app.use(
   ['/payments', '/api/payments'],
-  createProxyMiddleware({
-    target: 'http://localhost:3004',
-    changeOrigin: true,
-    pathRewrite: (path) => {
-      return path.replace(/^\/payments\/?/, '/api/payments');
-    }
-  })
+  createServiceProxy('http://localhost:3004', '/api/payments')
 );
 
-// 6. SELLER DASHBOARD (Port 3007)
+// 6. Seller Dashboard (Port 3007)
 app.use(
   ['/seller/dashboard', '/api/seller/dashboard'],
   createProxyMiddleware({
     target: 'http://localhost:3007',
-    changeOrigin: true
+    changeOrigin: true,
+    onProxyRes: overrideCors
   })
 );
 
 app.listen(PORT, () => {
-  console.log(`API Gateway running on port ${PORT}`);
+  console.log(`Gateway running on port ${PORT}`);
 });
