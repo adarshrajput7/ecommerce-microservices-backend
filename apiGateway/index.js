@@ -4,28 +4,27 @@ import { createProxyMiddleware } from 'http-proxy-middleware';
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-const allowedOrigins = [
-  'https://ecommerce-user-client.vercel.app',
-  'http://localhost:5173'
-];
-
-// 1. Gateway Level Clean CORS Handling
+// 1. DYNAMIC CORS: Kisi bhi incoming origin ko allow karega with full credentials
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
+  if (origin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
   }
+  
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, X-Requested-With');
 
+  // Preflight OPTIONS ko gateway level par hi 200 return karo
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
   next();
 });
 
-// 2. Proxy Helper: Overrides whatever microservices return for CORS
+// 2. Proxy Helper
 const proxyService = (target, defaultPrefix) => createProxyMiddleware({
   target,
   changeOrigin: true,
@@ -35,14 +34,14 @@ const proxyService = (target, defaultPrefix) => createProxyMiddleware({
   },
   onProxyRes: (proxyRes, req) => {
     const origin = req.headers.origin;
-    if (allowedOrigins.includes(origin)) {
+    if (origin) {
       proxyRes.headers['access-control-allow-origin'] = origin;
       proxyRes.headers['access-control-allow-credentials'] = 'true';
     }
   }
 });
 
-// 3. Mount All Services
+// 3. Mount Routes
 app.use(['/me', '/login', '/register', '/logout', '/auth', '/api/auth'], createProxyMiddleware({
   target: 'http://localhost:3000',
   changeOrigin: true,
@@ -53,7 +52,7 @@ app.use(['/me', '/login', '/register', '/logout', '/auth', '/api/auth'], createP
   },
   onProxyRes: (proxyRes, req) => {
     const origin = req.headers.origin;
-    if (allowedOrigins.includes(origin)) {
+    if (origin) {
       proxyRes.headers['access-control-allow-origin'] = origin;
       proxyRes.headers['access-control-allow-credentials'] = 'true';
     }
