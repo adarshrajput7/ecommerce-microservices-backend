@@ -17,6 +17,13 @@ routes.post('/login',validators.loginUserValidations,
 routes.post('/seller/login',validators.loginUserValidations,
     (req, res) => authController.loginUser(req, res, 'seller'));
 
+    //update address
+routes.patch(
+    '/me/update/:id',
+    authMiddleware.authMiddleware,
+    validators.addUserAddressValidations,
+    authController.updateAddress
+);
 //Get logged in user data
 routes.get('/me',authMiddleware.authMiddleware,authController.getCurrentUser);
 //logout
@@ -27,6 +34,7 @@ routes.get('/users/me/addresses', authMiddleware.authMiddleware, authController.
 routes.post('/users/me/addresses', validators.addUserAddressValidations, authMiddleware.authMiddleware, authController.addUserAddress);
 //delete user address
 routes.delete('/users/me/addresses/:addressId', authMiddleware.authMiddleware, authController.deleteUserAddress);
+
 
 
 

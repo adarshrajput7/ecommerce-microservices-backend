@@ -80,7 +80,7 @@ const registerUser = async (req, res) => {
     }
 }
 
-const loginUser = async (req, res,expectedRole) => {
+const loginUser = async (req, res, expectedRole) => {
     try {
         const { usernameOrEmail, password } = req.body
 
@@ -98,7 +98,7 @@ const loginUser = async (req, res,expectedRole) => {
             })
         }
 
-         // Role check
+        // Role check
         if (user.role !== expectedRole) {
             return res.status(403).json({
                 message: `Please login from ${user.role} dashboard`,
@@ -268,7 +268,7 @@ const addUserAddress = async (req, res) => {
             message: "Address added",
             address: user.addresses[user.addresses.length - 1],
             user,
-            success:true
+            success: true
         })
 
     } catch (error) {
@@ -323,6 +323,43 @@ const deleteUserAddress = async (req, res) => {
     }
 }
 
+const updateAddress = async (req, res) => {
+  try {
+    const userId = req.user.id || req.user._id;        
+    const { id: addressId } = req.params;              
+    const { street, city, state, pincode, country, phone, isDefault } = req.body;
+
+    const user = await userModel.findOneAndUpdate(
+      { _id: userId, "addresses._id": addressId },
+      {
+        $set: {
+          "addresses.$.street": street,
+          "addresses.$.city": city,
+          "addresses.$.state": state,
+          "addresses.$.pincode": pincode,
+          "addresses.$.country": country,
+          "addresses.$.phone": phone,
+          "addresses.$.isDefault": isDefault,
+        },
+      },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "Address not found" });
+    }
+    console.log(user)
+      res.status(200).json({
+          success: true,
+          user,
+          message: "Address Changed"
+      });
+  } catch (error) {
+    console.error("updateAddress error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 export default {
     registerUser,
     loginUser,
@@ -330,5 +367,6 @@ export default {
     logoutUser,
     getUserAddresses,
     addUserAddress,
-    deleteUserAddress
+    deleteUserAddress,
+    updateAddress
 }
